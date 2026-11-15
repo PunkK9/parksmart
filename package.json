@@ -1,0 +1,14 @@
+{
+  "name": "orbit",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Orbit - Autonomous Spatial Vehicle Parking & Telemetry Grid",
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "seed": "npm --prefix backend run seed",
+    "dev": "concurrently -n api,web -c blue,green \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
