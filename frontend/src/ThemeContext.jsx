@@ -4,12 +4,12 @@ const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("orbit_theme") || localStorage.getItem("parksmart_theme") || "dark";
+    return localStorage.getItem("orbit_theme_v2") || "light";
   });
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("orbit_theme", theme);
+    localStorage.setItem("orbit_theme_v2", theme);
   }, [theme]);
 
   const toggleTheme = () => {

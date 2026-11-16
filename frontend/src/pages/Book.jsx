@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Bike,
   Car,
@@ -17,42 +17,90 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import { Circle, MapContainer, Marker, Popup } from "react-leaflet";
+import { Circle, MapContainer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "../leafletGlobal";
 import api, { errMsg } from "../api";
 import { useToast } from "../components/Toast.jsx";
 import BookingModal from "../components/BookingModal.jsx";
 import RouteMap from "../components/RouteMap.jsx";
 import SpatialTileLayer from "../components/SpatialTileLayer.jsx";
-import { ENTRANCE, FACILITY_NAME, hasMapboxToken } from "../config";
+import { ENTRANCE, FACILITY_NAME } from "../config";
 import { getSocket } from "../socket";
-import { fmtDistance, fmtHour, money } from "../utils";
+import { fmtDistance, fmtHour, haversine, money } from "../utils";
 
 const STATUS_CONFIG = {
-  available: { label: "Vacant", cls: "stall-available", badgeCls: "badge-available", dot: "var(--ok)" },
+  available: { label: "Free", cls: "stall-available", badgeCls: "badge-available", dot: "var(--ok)" },
   reserved: { label: "Reserved", cls: "stall-reserved", badgeCls: "badge-occupied", dot: "var(--warn)" },
   occupied: { label: "Occupied", cls: "stall-occupied", badgeCls: "badge-maintenance", dot: "var(--bad)" },
   maintenance: { label: "Closed", cls: "stall-maintenance", badgeCls: "badge-normal", dot: "var(--idle)" },
 };
 
-const mapPin = (status, code) =>
+const PIN_COLORS = { available: "#10b981", reserved: "#f59e0b", occupied: "#ef4444", maintenance: "#64748b" };
+
+// Bays sit 6-8 m apart, so below this zoom their pins pile on top of each other.
+// Zoomed out we show one bubble per zone instead.
+const SHOW_BAYS_AT_ZOOM = 19.5;
+
+const mapPin = (status, code, size) =>
   L.divIcon({
     className: "",
     html: `
       <div style="
-        width: 34px; height: 34px; border-radius: 50%;
-        background: ${status === 'available' ? '#10b981' : status === 'reserved' ? '#f59e0b' : '#ef4444'};
-        color: #ffffff; font-weight: 800; font-size: 11px;
-        display: grid; place-items: center; border: 2.5px solid rgba(255,255,255,0.9);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        width: ${size}px; height: ${size}px; border-radius: 50%;
+        background: ${PIN_COLORS[status] || PIN_COLORS.occupied};
+        color: #ffffff; font-weight: 800; font-size: ${size >= 30 ? 11 : 9}px;
+        display: grid; place-items: center; border: 2px solid rgba(255,255,255,0.9);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
         font-family: 'JetBrains Mono', monospace;
       ">
         ${code}
       </div>
     `,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+
+const zoneBubble = (z) =>
+  L.divIcon({
+    className: "",
+    html: `
+      <div class="zone-bubble ${z.free ? "" : "zone-bubble-full"}">
+        <b>Zone ${z.zone}</b>
+        <span>${z.free ? `${z.free} free` : "Full"} of ${z.total}</span>
+      </div>
+    `,
+    iconSize: [110, 46],
+    iconAnchor: [55, 23],
+  });
+
+function ZoomWatcher({ onZoom }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  useEffect(() => onZoom(map.getZoom()), [map, onZoom]);
+  return null;
+}
+
+// Fit the map to the given points when fitKey changes (first load, zone or vehicle filter),
+// not on every live status update.
+function FitToPoints({ points, fitKey }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length) map.fitBounds(points, { padding: [40, 40], maxZoom: 20.5 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, fitKey]);
+  return null;
+}
+
+function ZoneBubbles({ zones }) {
+  const map = useMap();
+  return zones.map((z) => (
+    <Marker
+      key={z.zone}
+      position={[z.lat, z.lng]}
+      icon={zoneBubble(z)}
+      eventHandlers={{ click: () => map.flyToBounds(z.points, { padding: [50, 50], maxZoom: 20.5 }) }}
+    />
+  ));
+}
 
 export default function Book() {
   const toast = useToast();
@@ -75,6 +123,17 @@ export default function Book() {
   const [lastVehicle, setLastVehicle] = useState("");
   const [selected, setSelected] = useState(null);
   const [previewRouteSlot, setPreviewRouteSlot] = useState(null);
+  const [mapZoom, setMapZoom] = useState(18);
+  const [params] = useSearchParams();
+
+  // The header search sends people here as /?bay=A3
+  useEffect(() => {
+    const q = params.get("bay");
+    if (q) {
+      setSearch(q);
+      setViewMode("grid");
+    }
+  }, [params]);
 
   const loadSlots = useCallback(async () => {
     try {
@@ -139,6 +198,39 @@ export default function Book() {
     return Object.entries(g).sort(([a], [b]) => a.localeCompare(b));
   }, [visible]);
 
+  const mapped = useMemo(
+    () => visible.filter((s) => typeof s.lat === "number" && typeof s.lng === "number"),
+    [visible]
+  );
+
+  const zoneSummary = useMemo(() => {
+    const g = {};
+    mapped.forEach((s) => (g[s.zone] = g[s.zone] || []).push(s));
+    return Object.entries(g).map(([z, list]) => {
+      const lat = list.reduce((sum, s) => sum + s.lat, 0) / list.length;
+      const lng = list.reduce((sum, s) => sum + s.lng, 0) / list.length;
+      return {
+        zone: z,
+        lat,
+        lng,
+        // Heat circle reaches just past the farthest bay in the zone
+        radius: Math.max(...list.map((s) => haversine({ lat, lng }, s))) + 6,
+        free: list.filter((s) => s.status === "available").length,
+        total: list.length,
+        points: list.map((s) => [s.lat, s.lng]),
+      };
+    });
+  }, [mapped]);
+
+  // With all zones shown, include the gate so people can see where they come in.
+  const fitPoints = useMemo(() => {
+    const pts = mapped.map((s) => [s.lat, s.lng]);
+    return zone === "all" ? [...pts, [ENTRANCE.lat, ENTRANCE.lng]] : pts;
+  }, [mapped, zone]);
+
+  const showBays = mapZoom >= SHOW_BAYS_AT_ZOOM;
+  const pinSize = mapZoom >= 20 ? 34 : 26;
+
   const counts = useMemo(() => {
     const c = { available: 0, reserved: 0, occupied: 0, maintenance: 0 };
     slots.forEach((s) => (c[s.status] = (c[s.status] || 0) + 1));
@@ -161,7 +253,7 @@ export default function Book() {
 
   const booked = (b) => {
     setSelected(null);
-    toast(`Bay ${b.slot.code} activated in Orbit! Digital Pass ready.`, "success");
+    toast(`Bay ${b.slot.code} booked. Your QR pass is ready.`, "success");
     nav("/bookings");
   };
 
@@ -169,9 +261,12 @@ export default function Book() {
     <>
       <div className="page-head">
         <div>
-          <h1>Orbit Spatial Bay Matrix</h1>
+          <p className="eyebrow">
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+          <h1>Book a Bay</h1>
           <p>
-            {FACILITY_NAME} · {live ? "Live bay telemetry" : "Connecting live telemetry…"}
+            {FACILITY_NAME} · {live ? "Live updates on" : "Connecting…"}
           </p>
         </div>
 
@@ -182,14 +277,14 @@ export default function Book() {
             className={`segment-btn ${viewMode === "grid" ? "active" : ""}`}
             onClick={() => setViewMode("grid")}
           >
-            <LayoutGrid size={14} /> 3D Bay Matrix
+            <LayoutGrid size={14} /> Grid
           </button>
           <button
             type="button"
             className={`segment-btn ${viewMode === "map" ? "active" : ""}`}
             onClick={() => setViewMode("map")}
           >
-            <MapIcon size={14} /> Spatial Map
+            <MapIcon size={14} /> Map
           </button>
         </div>
       </div>
@@ -201,11 +296,11 @@ export default function Book() {
             <Clock size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Optimal Arrival</div>
+            <div className="kpi-label">Best time to come</div>
             <div className="kpi-val" style={{ fontSize: 18 }}>
               {pred?.hasData ? fmtHour(pred.bestHours[0]) : "Analyzing…"}
             </div>
-            <div className="kpi-sub">Lowest congestion window</div>
+            <div className="kpi-sub">When it's least busy</div>
           </div>
         </div>
 
@@ -214,11 +309,11 @@ export default function Book() {
             <TrendingUp size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Surge Traffic</div>
+            <div className="kpi-label">Busiest time</div>
             <div className="kpi-val" style={{ fontSize: 18 }}>
-              {pred?.hasData && pred.peakHours?.length ? `${fmtHour(pred.peakHours[0])}` : "Nominal"}
+              {pred?.hasData && pred.peakHours?.length ? `${fmtHour(pred.peakHours[0])}` : "No rush"}
             </div>
-            <div className="kpi-sub">Dynamic surge multiplier</div>
+            <div className="kpi-sub">Fees are higher then</div>
           </div>
         </div>
 
@@ -227,7 +322,7 @@ export default function Book() {
             <Wallet size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Dynamic Tariff</div>
+            <div className="kpi-label">Fee right now</div>
             <div className="kpi-val">
               {fee ? `${money(fee.perHour)}` : "…"}<span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>/hr</span>
             </div>
@@ -246,43 +341,30 @@ export default function Book() {
             <Star size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Orbit Favorite</div>
+            <div className="kpi-label">Your usual bay</div>
             <div className="kpi-val">
-              {fav ? fav.slot.code : "Bay A1"}
+              {fav ? fav.slot.code : "—"}
             </div>
             <div className="kpi-sub">
-              {fav ? `${fav.count} previous sessions` : "Calibrating preferences"}
+              {fav ? `Booked ${fav.count} time${fav.count === 1 ? "" : "s"} before` : "Book once to see it here"}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Facility Live Capacity Meter */}
-      <div className="card" style={{ marginBottom: 28, padding: "18px 22px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
-            <Sparkles size={16} color="var(--brand)" /> Autonomous Facility Capacity
-          </span>
-          <span style={{ fontWeight: 800, fontSize: 14, color: occupancyPct > 80 ? "var(--bad)" : "var(--brand)" }}>
-            {occupancyPct}% Occupancy ({counts.reserved + counts.occupied} of {slots.length} bays)
-          </span>
+      {/* Big red banner: how many bays are free right now */}
+      <section className="hero-band">
+        <div>
+          <span className="hero-kicker">{live ? "Live now" : "Connecting…"} · {FACILITY_NAME}</span>
+          <h2 className="hero-title">{counts.available} bays free</h2>
+          <p className="hero-sub">
+            {occupancyPct}% full · {counts.reserved + counts.occupied} of {slots.length} bays taken
+          </p>
         </div>
-        <div style={{ height: 8, background: "var(--surface-glass)", borderRadius: 9999, overflow: "hidden", border: "1px solid var(--line)" }}>
-          <div
-            style={{
-              height: "100%",
-              width: `${occupancyPct}%`,
-              background:
-                occupancyPct > 85
-                  ? "linear-gradient(90deg, #f59e0b, #f43f5e)"
-                  : "var(--brand-gradient)",
-              borderRadius: 9999,
-              transition: "width 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-              boxShadow: "0 0 12px rgba(59, 130, 246, 0.5)",
-            }}
-          />
+        <div className="hero-meter">
+          <div style={{ width: `${occupancyPct}%` }} />
         </div>
-      </div>
+      </section>
 
       {forecast?.headline && (
         <div className="forecast-strip">
@@ -308,14 +390,17 @@ export default function Book() {
         ) : (
           <div className="rec-grid">
             {recs.picks.map((pick, i) => (
-              <button key={pick.slot._id} type="button" className="rec-card" onClick={() => setSelected(pick.slot)}>
-                <div className="rec-rank">{i === 0 ? "Best" : `#${i + 1}`}</div>
-                <div>
-                  <strong>{pick.slot.code}</strong>
-                  <span>Zone {pick.slot.zone}</span>
-                </div>
-                <p>{pick.reasons.slice(0, 2).join(" · ")}</p>
-                {pick.distanceM != null && <em>{fmtDistance(pick.distanceM)}</em>}
+              <button key={pick.slot._id} type="button" className="rec-card app-row" onClick={() => setSelected(pick.slot)}>
+                <span className="app-icon">{pick.slot.code}</span>
+                <span className="app-row-text">
+                  <strong>Bay {pick.slot.code}</strong>
+                  <span>
+                    {i === 0 ? "Best match" : `Pick #${i + 1}`} · Zone {pick.slot.zone}
+                    {pick.distanceM != null ? ` · ${fmtDistance(pick.distanceM)}` : ""}
+                  </span>
+                  <small>{pick.reasons.slice(0, 2).join(" · ")}</small>
+                </span>
+                <span className="get-pill">Book</span>
               </button>
             ))}
           </div>
@@ -330,7 +415,7 @@ export default function Book() {
             className={`btn btn-sm ${zone === "all" ? "btn-primary" : ""}`}
             onClick={() => setZone("all")}
           >
-            All Zones
+            All zones
           </button>
           {zones.map((z) => (
             <button
@@ -348,12 +433,12 @@ export default function Book() {
           <select
             value={vt}
             onChange={(e) => setVt(e.target.value)}
-            style={{ width: "auto", minWidth: 170 }}
+            style={{ width: "auto", minWidth: 130 }}
             aria-label="Vehicle type filter"
           >
-            <option value="all">All Vehicles (All Types)</option>
-            <option value="4-wheeler">4-Wheelers (Cars)</option>
-            <option value="2-wheeler">2-Wheelers (Bikes)</option>
+            <option value="all">All vehicles</option>
+            <option value="4-wheeler">Cars</option>
+            <option value="2-wheeler">Bikes</option>
           </select>
 
           <div className="search-input-wrap">
@@ -372,8 +457,8 @@ export default function Book() {
         <div className="card" style={{ padding: 14, marginBottom: 28 }}>
           <div style={{ padding: "8px 12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div>
-              <h3 style={{ fontSize: 16 }}>Live Spatial Campus Map</h3>
-              <p className="muted" style={{ fontSize: 13 }}>Click on any vacant beacon to book or inspect its trajectory.</p>
+              <h3 style={{ fontSize: 16 }}>Campus map</h3>
+              <p className="muted" style={{ fontSize: 13 }}>Tap a zone to zoom in, then tap a bay to book it or get directions.</p>
             </div>
 
             {/* Map Layer Switcher */}
@@ -399,7 +484,7 @@ export default function Book() {
                 className={`btn btn-sm ${showHeat ? "btn-primary" : ""}`}
                 onClick={() => setShowHeat((v) => !v)}
               >
-                Heat
+                Heatmap
               </button>
             </div>
           </div>
@@ -407,46 +492,50 @@ export default function Book() {
           <div className="spatial-map-wrap" style={{ height: "min(68vh, 640px)" }}>
             <div className="map-status-pill">
               {mapStatus || "Map"}
-              {!hasMapboxToken() && mapLayer === "satellite" ? " · add VITE_MAPBOX_TOKEN for imagery" : ""}
               {live ? " · live" : ""}
             </div>
             <MapContainer
               center={[13.0305, 77.5646]}
               zoom={18}
+              zoomSnap={0.5}
+              maxZoom={21}
               style={{ height: "100%", width: "100%" }}
             >
               <SpatialTileLayer mode={mapLayer} onStatus={setMapStatus} />
+              <ZoomWatcher onZoom={setMapZoom} />
+              <FitToPoints points={fitPoints} fitKey={`${loaded}-${zone}-${vt}`} />
 
               <Marker
                 position={[ENTRANCE.lat, ENTRANCE.lng]}
                 icon={L.divIcon({
                   className: "",
-                  html: `<div style="background:var(--brand-gradient); color:#fff; font-weight:800; font-size:11px; padding:4px 10px; border-radius:9999px; border:2px solid #fff; box-shadow:0 6px 16px rgba(0,0,0,0.5); white-space:nowrap; font-family:'Plus Jakarta Sans',sans-serif;">${ENTRANCE.name}</div>`,
-                  iconAnchor: [48, 16],
+                  html: `<div style="position:absolute; transform:translate(-50%,-50%); background:var(--brand-gradient); color:#fff; font-weight:800; font-size:11px; padding:4px 10px; border-radius:9999px; border:2px solid #fff; box-shadow:0 6px 16px rgba(0,0,0,0.5); white-space:nowrap; font-family:'Plus Jakarta Sans',sans-serif;">${ENTRANCE.name}</div>`,
+                  iconSize: [0, 0],
                 })}
               />
 
+              {/* Heat: one soft circle per zone, coloured by how full it is predicted to be */}
               {showHeat &&
-                visible
-                  .filter((s) => typeof s.lat === "number")
-                  .map((s) => {
-                    const pct = forecastByZone[s.zone]?.predictedPct ?? 0;
-                    const color = pct >= 80 ? "#f43f5e" : pct >= 55 ? "#f59e0b" : "#10b981";
-                    return (
-                      <Circle
-                        key={`heat-${s._id}`}
-                        center={[s.lat, s.lng]}
-                        radius={14}
-                        pathOptions={{ color, fillColor: color, fillOpacity: 0.28, weight: 0 }}
-                      />
-                    );
-                  })}
+                zoneSummary.map((z) => {
+                  const pct = forecastByZone[z.zone]?.predictedPct ?? 0;
+                  const color = pct >= 80 ? "#f43f5e" : pct >= 55 ? "#f59e0b" : "#10b981";
+                  return (
+                    <Circle
+                      key={`heat-${z.zone}`}
+                      center={[z.lat, z.lng]}
+                      radius={z.radius}
+                      pathOptions={{ color, fillColor: color, fillOpacity: 0.2, weight: 1.5, opacity: 0.6 }}
+                    />
+                  );
+                })}
 
-              {visible.filter((s) => typeof s.lat === "number" && typeof s.lng === "number").map((s) => (
+              {!showBays && <ZoneBubbles zones={zoneSummary} />}
+
+              {showBays && mapped.map((s) => (
                 <Marker
                   key={s._id}
                   position={[s.lat, s.lng]}
-                  icon={mapPin(s.status, s.code)}
+                  icon={mapPin(s.status, s.code, pinSize)}
                 >
                   <Popup>
                     <div style={{ padding: 6, textAlign: "center", minWidth: 150 }}>
@@ -465,14 +554,14 @@ export default function Book() {
                             className="btn btn-primary btn-sm btn-block"
                             onClick={() => setSelected(s)}
                           >
-                            Reserve Bay {s.code}
+                            Book Bay {s.code}
                           </button>
                         )}
                         <button
                           className="btn btn-sm btn-block"
                           onClick={() => setPreviewRouteSlot(s)}
                         >
-                          <Compass size={12} /> View GPS Path
+                          <Compass size={12} /> Directions
                         </button>
                       </div>
                     </div>
@@ -488,11 +577,11 @@ export default function Book() {
       {viewMode === "grid" && (
         !loaded ? (
           <div className="card" style={{ textAlign: "center", padding: 60 }}>
-            <div className="muted">Synchronizing spatial telemetry with parking hardware…</div>
+            <div className="muted">Loading bays…</div>
           </div>
         ) : grouped.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: 60 }}>
-            <p className="muted">No parking bays match the current filter criteria.</p>
+            <p className="muted">No bays match these filters.</p>
           </div>
         ) : (
           grouped.map(([z, list]) => {
@@ -503,10 +592,10 @@ export default function Book() {
                 <div className="zone-header">
                   <div className="zone-badge">
                     <span className="zone-chip">Zone {z}</span>
-                    <span>{isBikeZone ? "Covered 2-Wheeler Pavilion" : "Dedicated 4-Wheeler Bays"}</span>
+                    <span>{isBikeZone ? "Bike bays" : "Car bays"}</span>
                   </div>
                   <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
-                    <b style={{ color: availableCount > 0 ? "var(--ok)" : "var(--bad)" }}>{availableCount}</b> of {list.length} vacant
+                    <b style={{ color: availableCount > 0 ? "var(--ok)" : "var(--bad)" }}>{availableCount}</b> of {list.length} free
                   </span>
                 </div>
 

@@ -69,25 +69,25 @@ router.post("/chat", wrap(async (req, res) => {
 
   if (slotByCode) {
     const isAvail = slotByCode.status === "available";
-    reply = `Slot ${slotByCode.code} (${slotByCode.zone} Zone, dedicated for ${slotByCode.vehicleType}) is currently ${slotByCode.status.toUpperCase()}.${isAvail ? " You can book it right now from the Book a Slot tab." : ""}`;
+    reply = `Slot ${slotByCode.code} (${slotByCode.zone} Zone, dedicated for ${slotByCode.vehicleType}) is currently ${slotByCode.status.toUpperCase()}.${isAvail ? " You can book it now from the Book a Bay page." : ""}`;
   } else if (/^(hi|hello|hey|greetings|help)\b/.test(msg)) {
-    reply = "Hello! I am your Orbit Autonomous Concierge. I can verify real-time bay occupancy, forecast peak hours, calculate dynamic parking tariffs, and provide spatial navigation guidance.";
+    reply = "Hi! I can tell you which bays are free, when it's least busy, what parking costs right now, and how to find the gate.";
   } else if (/favou?rite|usual|regular|preferred/.test(msg)) {
     const f = await favoriteSlot(req.user._id);
     reply = f
       ? `Your most frequented slot is ${f.slot.code} in Zone ${f.slot.zone}. You have reserved it ${f.count} time${f.count > 1 ? "s" : ""}, and it is currently ${f.slot.status.toUpperCase()}.`
       : "You don't have enough booking history yet. Once you make a couple of bookings, I'll identify your favorite bay!";
   } else if (/entrance|gate|location|where is|navigate|direction|reach/.test(msg)) {
-    reply = "The main entrance is located at North Gate (13.0293° N, 77.5641° E). Once you reserve any slot, open 'My Bookings' and tap 'Route to Slot' for live GPS turn-by-turn guidance straight to your parking bay.";
+    reply = "The main gate is at 13.0293° N, 77.5641° E. After you book, open 'My Bookings' and tap 'Directions' to see your bay on the map with the distance and direction from the gate.";
   } else if (/check[- ]?in|check[- ]?out|how to scan|qr code|gate/.test(msg)) {
-    reply = "To check in, arrive at the entrance gate and scan your booking's digital QR pass. The gate sensor flags your slot as OCCUPIED. When leaving, scan the QR code again to check out and pay the exact hourly fee.";
+    reply = "To check in, arrive at the entrance gate and scan your booking's digital QR pass. Your bay then shows as occupied. When leaving, scan the QR code again to check out and pay the exact hourly fee.";
   } else if (/cancel|refund/.test(msg)) {
     reply = "You can cancel any booking free of charge from 'My Bookings' as long as you haven't checked in yet at the gate.";
   } else if (/peak|busy|crowd|best time|when to arrive|quiet|traffic/.test(msg)) {
     const d = await getDemand();
     reply = d.hasData
       ? `Based on our 60-day moving average, peak rush hours are ${d.peakHours.map(fmt).join(", ") || "normally distributed"}. The least crowded and best times to park are ${d.bestHours.map(fmt).join(", ")}.`
-      : "Not enough booking telemetry collected yet to pinpoint peak hours.";
+      : "There isn't enough booking history yet to tell the peak hours.";
   } else if (/fee|price|cost|charge|rate|pay|surge|tariff/.test(msg)) {
     const vt = /bike|scooter|two|2-?wheel/.test(msg) ? "2-wheeler" : "4-wheeler";
     const f = await currentFee(vt);
@@ -99,7 +99,7 @@ router.post("/chat", wrap(async (req, res) => {
     }).populate("slot");
     reply = b
       ? `You hold an active reservation for Slot ${b.slot.code} (Zone ${b.slot.zone}, ${b.slot.vehicleType}). Status: ${b.status.replace("_", " ").toUpperCase()}. Vehicle: ${b.vehicleNumber}.`
-      : "You currently have no active booking. You can reserve an available slot from the Book a Slot tab.";
+      : "You currently have no active booking. You can book a free bay from the Book a Bay page.";
   } else if (/free|available|vacant|space|slot|empty|open/.test(msg)) {
     const f = { status: "available" };
     const z = msg.match(/zone\s*([a-z])\b/);
@@ -112,11 +112,11 @@ router.post("/chat", wrap(async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
     reply = rows.length
-      ? "Real-time available bays: " + rows.map((r) => `Zone ${r._id}: ${r.n} vacant`).join(" · ") + "."
+      ? "Free bays right now: " + rows.map((r) => `Zone ${r._id}: ${r.n} free`).join(" · ") + "."
       : "All slots matching your criteria are currently occupied or reserved.";
   } else {
     reply =
-      "I'm here to assist with: checking slot status ('Is A3 free?'), finding vacant bays ('Any free slot in zone B?'), calculating dynamic rates ('What is the car rate?'), arrival recommendations ('Best time to park?'), and checking active passes.";
+      "I'm here to assist with: checking slot status ('Is A3 free?'), finding free bays ('Any free slot in zone B?'), fees ('What is the car rate?'), arrival recommendations ('Best time to park?'), and checking active passes.";
   }
 
   res.json({ reply });

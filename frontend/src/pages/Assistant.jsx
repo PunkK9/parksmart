@@ -17,7 +17,7 @@ export default function Assistant() {
   const [log, setLog] = useState([
     {
       from: "bot",
-      text: "Hello! I am your Autonomous Campus Concierge. Ask me about real-time bay occupancy, congestion forecasts, dynamic tariffs, or turn-by-turn entrance directions.",
+      text: "Hi! Ask me which bays are free, when it's least busy, what parking costs, or how to find the gate.",
     },
   ]);
   const [text, setText] = useState("");
@@ -65,8 +65,8 @@ export default function Assistant() {
     <>
       <div className="page-head">
         <div>
-          <h1>Orbit AI Concierge</h1>
-          <p>Autonomous telemetry queries, dynamic pricing estimates, and spatial navigation.</p>
+          <h1>Assistant</h1>
+          <p>Ask about free bays, busy times, fees and your booking. Answers come from live booking data.</p>
         </div>
       </div>
 
@@ -120,7 +120,7 @@ export default function Assistant() {
                   <Sparkles size={16} color="#ffffff" className="spin" />
                 </div>
                 <div className="chat-bubble bubble-ai muted" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  Analyzing real-time sensor array…
+                  Thinking…
                 </div>
               </div>
             )}
@@ -155,7 +155,7 @@ export default function Assistant() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Ask anything (e.g. 'Is bay A2 available?', 'Best time to arrive?')"
-              aria-label="Message to AI Concierge"
+              aria-label="Message to the assistant"
             />
             <button className="btn btn-primary" disabled={busy || !text.trim()} aria-label="Send query">
               <Send size={15} />
@@ -167,10 +167,10 @@ export default function Assistant() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div className="card">
             <h3 style={{ fontSize: 15, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-              <Zap size={16} color="var(--brand)" /> 24h Hourly Demand Model
+              <Zap size={16} color="var(--brand)" /> Demand by hour
             </h3>
             <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
-              Telemetry density curve utilized by the pricing model:
+              Bookings per hour, which sets the fee:
             </p>
 
             <div style={{ height: 160, width: "100%" }}>
@@ -201,13 +201,13 @@ export default function Assistant() {
 
           <div className="card">
             <h3 style={{ fontSize: 14, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-              <Info size={15} color="var(--brand)" /> Autonomous Agent Capabilities
+              <Info size={15} color="var(--brand)" /> What you can ask
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.7 }}>
               <li>Live bay availability check</li>
-              <li>Optimal arrival window recommendation</li>
-              <li>Dynamic surge fee calculation</li>
-              <li>Navigation assistance & entrance gate coordinates</li>
+              <li>Best time to arrive</li>
+              <li>Current fee and peak pricing</li>
+              <li>Where the gate is</li>
             </ul>
           </div>
         </div>

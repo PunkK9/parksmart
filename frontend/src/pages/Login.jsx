@@ -54,7 +54,7 @@ export default function Login() {
             <div className="brand-mark">O</div>
             <div className="brand-text">
               <span className="brand-title">Orbit</span>
-              <span className="brand-tag">Autonomous Access Portal</span>
+              <span className="brand-tag">Smart Parking</span>
             </div>
           </div>
           <h2>Welcome back</h2>

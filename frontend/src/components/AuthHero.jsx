@@ -13,13 +13,13 @@ export default function AuthHero() {
         <div className="brand-mark">O</div>
         <div className="brand-text">
           <span className="brand-title" style={{ color: "#fff" }}>Orbit</span>
-          <span className="brand-tag" style={{ color: "rgba(255,255,255,0.7)" }}>Autonomous Spatial Grid</span>
+          <span className="brand-tag" style={{ color: "rgba(255,255,255,0.7)" }}>Smart Parking</span>
         </div>
       </div>
       <div>
         <h1>Dock into your bay before you reach the gate.</h1>
         <p>
-          Precision spatial bay availability, autonomous QR verification, real-time demand surge forecasting, and OSRM trajectory telemetry.
+          See free bays live, book in seconds, scan a QR code at the gate, and pay only for the time you park.
         </p>
       </div>
       <div className="hero-grid" aria-hidden="true">

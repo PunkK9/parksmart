@@ -23,7 +23,7 @@ function SlotsTab() {
         lng: form.lng === "" ? undefined : Number(form.lng),
       };
       await api.post("/slots", body);
-      toast(`Bay ${form.code.toUpperCase()} registered successfully`, "success");
+      toast(`Bay ${form.code.toUpperCase()} added`, "success");
       setForm({ ...form, code: "", lat: "", lng: "" });
       load();
     } catch (err) {
@@ -45,7 +45,7 @@ function SlotsTab() {
     if (!window.confirm(`Delete parking bay ${s.code}?`)) return;
     try {
       await api.delete(`/slots/${s._id}`);
-      toast(`Bay ${s.code} decommissioned`, "info");
+      toast(`Bay ${s.code} deleted`, "info");
       load();
     } catch (err) {
       toast(errMsg(err), "error");
@@ -55,7 +55,7 @@ function SlotsTab() {
   return (
     <>
       <form className="card" onSubmit={add} style={{ marginBottom: 24 }}>
-        <h3 style={{ marginBottom: 16 }}>Register New Parking Bay</h3>
+        <h3 style={{ marginBottom: 16 }}>Add a bay</h3>
         <div className="filters">
           <div>
             <label htmlFor="code">Bay Code</label>
@@ -66,18 +66,18 @@ function SlotsTab() {
             <input id="zone" value={form.zone} onChange={set("zone")} placeholder="e.g. A" required />
           </div>
           <div>
-            <label htmlFor="vtype">Vehicle Classification</label>
+            <label htmlFor="vtype">Vehicle type</label>
             <select id="vtype" value={form.vehicleType} onChange={set("vehicleType")}>
-              <option value="4-wheeler">4-Wheeler (Car)</option>
-              <option value="2-wheeler">2-Wheeler (Bike)</option>
+              <option value="4-wheeler">Car</option>
+              <option value="2-wheeler">Bike</option>
             </select>
           </div>
           <div>
-            <label htmlFor="lat">GPS Latitude</label>
+            <label htmlFor="lat">Latitude</label>
             <input id="lat" type="number" step="any" value={form.lat} onChange={set("lat")} placeholder="13.0295" />
           </div>
           <div>
-            <label htmlFor="lng">GPS Longitude</label>
+            <label htmlFor="lng">Longitude</label>
             <input id="lng" type="number" step="any" value={form.lng} onChange={set("lng")} placeholder="77.5642" />
           </div>
           <button className="btn btn-primary">
@@ -93,9 +93,9 @@ function SlotsTab() {
               <tr>
                 <th>Bay Code</th>
                 <th>Zone</th>
-                <th>Vehicle Class</th>
+                <th>Vehicle</th>
                 <th>Status</th>
-                <th>Coordinates</th>
+                <th>Map location</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
@@ -157,20 +157,20 @@ function BookingsTab() {
 
   const copy = (t) => {
     navigator.clipboard?.writeText(t);
-    toast("QR token copied. Paste in Gate Scanner tab.", "success");
+    toast("Pass code copied. Paste it in the Gate scan tab.", "success");
   };
 
   return (
     <>
       <div className="toolbar">
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status filter" style={{ width: "auto" }}>
-          <option value="">All Statuses</option>
-          <option value="booked">Booked (Pending Arrival)</option>
-          <option value="checked_in">Checked in (In Bay)</option>
-          <option value="completed">Completed (Billed)</option>
+          <option value="">All statuses</option>
+          <option value="booked">Booked (not arrived)</option>
+          <option value="checked_in">Checked in</option>
+          <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
-        <span className="muted" style={{ fontSize: 13 }}>Showing latest 200 telemetry records</span>
+        <span className="muted" style={{ fontSize: 13 }}>Latest 200 bookings</span>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -178,13 +178,13 @@ function BookingsTab() {
           <table>
             <thead>
               <tr>
-                <th>Occupant</th>
+                <th>User</th>
                 <th>Bay</th>
                 <th>Plate</th>
                 <th>Start Time</th>
-                <th>Billed Tariff</th>
+                <th>Fee</th>
                 <th>Status</th>
-                <th style={{ textAlign: "right" }}>Token</th>
+                <th style={{ textAlign: "right" }}>Pass code</th>
               </tr>
             </thead>
             <tbody>
@@ -212,7 +212,7 @@ function BookingsTab() {
                   <td style={{ textAlign: "right" }}>
                     {["booked", "checked_in"].includes(b.status) && (
                       <button className="btn btn-sm" onClick={() => copy(b.qrToken)}>
-                        <Copy size={13} /> Token
+                        <Copy size={13} /> Copy
                       </button>
                     )}
                   </td>
@@ -246,24 +246,24 @@ function GateTab() {
 
   return (
     <div className="card" style={{ maxWidth: 540 }}>
-      <h3 style={{ marginBottom: 6 }}>Boom Gate Scanner Simulator</h3>
+      <h3 style={{ marginBottom: 6 }}>Gate scan</h3>
       <p className="muted" style={{ marginBottom: 18, fontSize: 13 }}>
-        Simulates the hardware optical QR scanner at the campus entrance boom gate. First scan checks the vehicle in; second scan triggers checkout and final billing calculation.
+        Works like the QR scanner at the gate. The first scan checks the vehicle in; the second checks it out and works out the fee.
       </p>
       <form onSubmit={scan}>
         <div className="field">
-          <label htmlFor="tok">Scan or Enter Token</label>
+          <label htmlFor="tok">Pass code</label>
           <input
             id="tok"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder="Paste raw QR token string"
+            placeholder="Paste the pass code"
             required
             style={{ fontFamily: "JetBrains Mono" }}
           />
         </div>
         <button className="btn btn-primary">
-          <ScanLine size={16} /> Scan Token
+          <ScanLine size={16} /> Scan
         </button>
       </form>
       {result && (
@@ -283,12 +283,12 @@ export default function Admin() {
     <>
       <div className="page-head">
         <div>
-          <h1>Orbit Spatial Control Center</h1>
-          <p>Telemetry grid management, ACID reservation ledger, and boom gate scanner simulator.</p>
+          <h1>Manage Bays</h1>
+          <p>Add or close bays, see every booking, and test the gate scanner.</p>
         </div>
       </div>
       <div className="tabs">
-        {[["slots", "Spatial Bays"], ["bookings", "Reservation Ledger"], ["gate", "Gate Scanner"]].map(([k, l]) => (
+        {[["slots", "Bays"], ["bookings", "Bookings"], ["gate", "Gate scan"]].map(([k, l]) => (
           <button key={k} className={`tab ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>
             {l}
           </button>
