@@ -71,9 +71,9 @@ export default function MyBookings() {
     try {
       const { data } = await api.post("/bookings/scan", { qrToken: b.qrToken });
       if (data.action === "checked_in") {
-        toast(`Gate sensor activated! Checked in to Bay ${b.slot.code}`, "success");
+        toast(`Checked in to Bay ${b.slot.code}`, "success");
       } else {
-        toast(`Checked out successfully! Total tariff billed: ${money(data.booking.fee)}`, "success");
+        toast(`Checked out. Fee: ${money(data.booking.fee)}`, "success");
       }
       await load();
     } catch (e) {
@@ -88,7 +88,7 @@ export default function MyBookings() {
     setBusyId(b._id);
     try {
       await api.put(`/bookings/${b._id}/cancel`);
-      toast("Reservation cancelled. Stalled bay released.", "info");
+      toast("Booking cancelled. The bay is free again.", "info");
       await load();
     } catch (e) {
       toast(errMsg(e), "error");
@@ -99,7 +99,7 @@ export default function MyBookings() {
 
   const copyToken = (token) => {
     navigator.clipboard.writeText(token);
-    toast("Gate Access Token copied to clipboard!", "success");
+    toast("Pass code copied.", "success");
   };
 
   const active = items.filter((b) => ["booked", "checked_in"].includes(b.status));
@@ -109,14 +109,14 @@ export default function MyBookings() {
     <>
       <div className="page-head">
         <div>
-          <h1>Orbit Digital Access Passes</h1>
-          <p>Scan your spatial boarding pass at entrance and exit boom gate scanners.</p>
+          <h1>My Bookings</h1>
+          <p>Show this QR code at the gate when you arrive and again when you leave.</p>
         </div>
       </div>
 
       {!loaded ? (
         <div className="card" style={{ textAlign: "center", padding: 60 }}>
-          <div className="muted">Synchronizing parking wallet with campus ledger…</div>
+          <div className="muted">Loading your bookings…</div>
         </div>
       ) : (
         <>
@@ -137,12 +137,12 @@ export default function MyBookings() {
               >
                 <QrCode size={30} />
               </div>
-              <h3 style={{ fontSize: 19, marginBottom: 8 }}>No Active Passes</h3>
+              <h3 style={{ fontSize: 19, marginBottom: 8 }}>No active booking</h3>
               <p className="muted" style={{ maxWidth: 400, margin: "0 auto 24px" }}>
-                You do not have any active bay reservations. Select an available bay on the spatial grid to activate a pass.
+                Pick a free bay to book one.
               </p>
               <Link className="btn btn-primary" to="/">
-                Explore Vacant Bays
+                Find a bay
               </Link>
             </div>
           ) : (
@@ -155,10 +155,10 @@ export default function MyBookings() {
                     <div className="pass-header">
                       <div>
                         <span className={`badge ${isCheckedIn ? "badge-checked_in" : "badge-booked"}`}>
-                          {isCheckedIn ? "● IN PARKED STATE" : "● READY FOR GATE ENTRY"}
+                          {isCheckedIn ? "● Parked" : "● Ready to enter"}
                         </span>
                         <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
-                          Orbit Terminal · Zone {b.slot.zone}
+                          Zone {b.slot.zone}
                         </div>
                       </div>
 
@@ -177,7 +177,7 @@ export default function MyBookings() {
                       <div>
                         {/* Stamped Number Plate */}
                         <div style={{ marginBottom: 14 }}>
-                          <span className="kpi-label">Registered Vehicle</span>
+                          <span className="kpi-label">Vehicle</span>
                           <div style={{ marginTop: 4 }}>
                             <div className="ind-plate">
                               <span className="ind-badge">IND</span>
@@ -189,7 +189,7 @@ export default function MyBookings() {
                         {/* Timing Telemetry */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           <div>
-                            <span className="kpi-label">Reservation Timestamp</span>
+                            <span className="kpi-label">Booked at</span>
                             <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>
                               {fmtDateTime(b.createdAt)}
                             </div>
@@ -197,7 +197,7 @@ export default function MyBookings() {
 
                           {!isCheckedIn && b.expiresAt && (
                             <div>
-                              <span className="kpi-label">Hold remaining</span>
+                              <span className="kpi-label">Time left to arrive</span>
                               <div style={{ marginTop: 4 }}>
                                 <span className="chronometer-pill">
                                   <Clock size={13} /> {holdLeft(b.expiresAt, now)} · releases after {HOLD_MINUTES} min
@@ -208,7 +208,7 @@ export default function MyBookings() {
 
                           {isCheckedIn && (
                             <div>
-                              <span className="kpi-label">Session Elapsed</span>
+                              <span className="kpi-label">Parked for</span>
                               <div style={{ marginTop: 4 }}>
                                 <span className="chronometer-pill">
                                   <Clock size={13} /> {formatElapsed(b.checkInTime, now)}
@@ -232,10 +232,10 @@ export default function MyBookings() {
                     <div className="pass-footer">
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button className="btn btn-sm" onClick={() => copyToken(b.qrToken)}>
-                          <Copy size={13} /> Copy Token
+                          <Copy size={13} /> Copy code
                         </button>
                         <button className="btn btn-sm" onClick={() => setMapSlot(b.slot)}>
-                          <Compass size={13} /> View GPS Path
+                          <Compass size={13} /> Directions
                         </button>
                       </div>
 
@@ -246,7 +246,7 @@ export default function MyBookings() {
                           onClick={() => scan(b)}
                         >
                           <ScanLine size={14} />
-                          {isCheckedIn ? "Simulate Gate Check-Out" : "Simulate Gate Check-In"}
+                          {isCheckedIn ? "Scan out (demo)" : "Scan in (demo)"}
                         </button>
                         {!isCheckedIn && (
                           <button
@@ -267,10 +267,10 @@ export default function MyBookings() {
 
           {/* Historical Trips Section */}
           <div style={{ marginTop: 40 }}>
-            <h2 style={{ fontSize: 18, marginBottom: 16 }}>Parking History & Invoices</h2>
+            <h2 style={{ fontSize: 18, marginBottom: 16 }}>Past bookings</h2>
             {history.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: 36, color: "var(--muted)" }}>
-                Completed sessions and billing statements will be archived here.
+                Finished bookings will show up here.
               </div>
             ) : (
               <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -279,10 +279,10 @@ export default function MyBookings() {
                     <thead>
                       <tr>
                         <th>Bay</th>
-                        <th>Vehicle Plate</th>
-                        <th>Entry Time</th>
-                        <th>Exit Time</th>
-                        <th>Tariff Billed</th>
+                        <th>Vehicle</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th>Fee</th>
                         <th>Status</th>
                       </tr>
                     </thead>

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Marker, useMap } from "react-leaflet";
-import { Compass, CornerUpLeft, CornerUpRight, Layers, MapPin, Navigation, Satellite, X } from "lucide-react";
-import L from "../leafletGlobal";
-import "leaflet-routing-machine";
-import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
+import { MapContainer, Marker, Polyline, ZoomControl, useMap } from "react-leaflet";
+import { Layers, MapPin, Navigation, Satellite, X } from "lucide-react";
+import L from "leaflet";
 import { ENTRANCE } from "../config";
-import { fmtDistance, fmtDuration, haversine } from "../utils";
+import { compassDirection, fmtDistance, fmtDuration, haversine } from "../utils";
 import SpatialTileLayer from "./SpatialTileLayer.jsx";
 
-// Custom high-DPI Leaflet radar beacon marker
+// Campus paths are not on any public road map, so a routing service can't give a real
+// route from the gate to a bay. We show the straight walking line, which is honest.
+const WALK_SPEED = 1.3; // metres per second, a normal walking pace
+
 const createPin = (cls, label, subtitle = "") =>
   L.divIcon({
     className: "",
@@ -22,89 +23,42 @@ const createPin = (cls, label, subtitle = "") =>
     iconAnchor: [18, 18],
   });
 
-function Routing({ from, to, onResult }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const control = L.Routing.control({
-      waypoints: [L.latLng(from.lat, from.lng), L.latLng(to.lat, to.lng)],
-      router: L.Routing.osrmv1({
-        serviceUrl: "https://router.project-osrm.org/route/v1",
-        profile: "driving",
-      }),
-      show: false,
-      addWaypoints: false,
-      draggableWaypoints: false,
-      routeWhileDragging: false,
-      fitSelectedRoutes: true,
-      createMarker: () => null,
-      lineOptions: {
-        styles: [
-          { color: "#0f172a", weight: 10, opacity: 0.8 },
-          { color: "#2563eb", weight: 6, opacity: 0.95 },
-          { color: "#38bdf8", weight: 2.5, opacity: 1 },
-        ],
-        extendToWaypoints: true,
-        missingRouteTolerance: 0,
-      },
-    }).addTo(map);
-
-    control.on("routesfound", (e) => {
-      const r = e.routes[0];
-      const s = r.summary;
-      onResult({
-        ok: true,
-        distance: s.totalDistance,
-        time: s.totalTime,
-        instructions: r.instructions || [],
-      });
-    });
-
-    control.on("routingerror", () => onResult({ ok: false }));
-
-    return () => {
-      try {
-        map.removeControl(control);
-      } catch {
-        /* detached */
-      }
-    };
-  }, [map, from.lat, from.lng, to.lat, to.lng, onResult]);
-
-  return null;
-}
-
+// Keep both pins in view, with room at the top for the floating label and layer switch.
 function FitBoth({ from, to }) {
   const map = useMap();
   useEffect(() => {
     map.fitBounds([[from.lat, from.lng], [to.lat, to.lng]], {
-      padding: [60, 60],
-      maxZoom: 19,
+      paddingTopLeft: [60, 90],
+      paddingBottomRight: [60, 60],
+      maxZoom: 20,
     });
   }, [map, from.lat, from.lng, to.lat, to.lng]);
   return null;
 }
 
 export default function RouteMap({ slot, onClose }) {
-  const [route, setRoute] = useState(null);
-  const [layer, setLayer] = useState("satellite"); // Default to high-res Satellite
+  const [layer, setLayer] = useState("satellite");
   const slotPos = useMemo(() => ({ lat: slot.lat, lng: slot.lng }), [slot.lat, slot.lng]);
   const hasCoords = typeof slot.lat === "number" && typeof slot.lng === "number";
-  const straight = hasCoords ? haversine(ENTRANCE, slotPos) : null;
+  const distance = hasCoords ? haversine(ENTRANCE, slotPos) : null;
+  const direction = hasCoords ? compassDirection(ENTRANCE, slotPos) : null;
+  const line = hasCoords ? [[ENTRANCE.lat, ENTRANCE.lng], [slot.lat, slot.lng]] : [];
 
   return (
     <div className="backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 900, width: "95%" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2>Orbit Spatial Trajectory · Bay {slot.code}</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h2>Directions to Bay {slot.code}</h2>
               <span className="badge badge-completed">
                 Zone {slot.zone} · {slot.vehicleType}
               </span>
             </div>
             <p className="muted" style={{ marginTop: 4 }}>
-              Precision autonomous navigation from {ENTRANCE.name} to Bay {slot.code}
+              {hasCoords
+                ? `From the ${ENTRANCE.name.toLowerCase()}, head ${direction} for about ${fmtDistance(distance)}.`
+                : `Bay ${slot.code} in Zone ${slot.zone}`}
             </p>
           </div>
           <button className="icon-btn" aria-label="Close" onClick={onClose}>
@@ -114,109 +68,76 @@ export default function RouteMap({ slot, onClose }) {
 
         {hasCoords ? (
           <>
-            <div className="spatial-map-wrap" style={{ height: 430 }}>
-              {/* Floating Spatial HUD */}
+            <div className="spatial-map-wrap" style={{ height: "min(430px, 55vh)" }}>
               <div className="map-hud-top">
                 <div className="map-hud-pill">
                   <Navigation size={13} style={{ color: "var(--brand)" }} />
                   <span>{ENTRANCE.name} → Bay {slot.code}</span>
                 </div>
 
-                {/* Spatial Map Layer Switcher */}
                 <div className="segment-ctrl">
                   <button
                     type="button"
                     className={`segment-btn ${layer === "satellite" ? "active" : ""}`}
                     onClick={() => setLayer("satellite")}
                   >
-                    <Satellite size={12} /> Mapbox Satellite
+                    <Satellite size={12} /> Satellite
                   </button>
                   <button
                     type="button"
                     className={`segment-btn ${layer === "streets" ? "active" : ""}`}
                     onClick={() => setLayer("streets")}
                   >
-                    <Layers size={12} /> Vector HUD
+                    <Layers size={12} /> Streets
                   </button>
                 </div>
               </div>
 
               <MapContainer
                 center={[slot.lat, slot.lng]}
-                zoom={18}
+                zoom={19}
+                zoomSnap={0.5}
+                maxZoom={21}
+                zoomControl={false}
                 style={{ height: "100%", width: "100%" }}
               >
+                <ZoomControl position="bottomright" />
                 <SpatialTileLayer mode={layer} />
 
-                <Marker position={[ENTRANCE.lat, ENTRANCE.lng]} icon={createPin("pin-entrance", "GATE", "Orbit Gateway")} />
+                <Polyline positions={line} pathOptions={{ color: "#0f172a", weight: 10, opacity: 0.55 }} />
+                <Polyline
+                  positions={line}
+                  pathOptions={{ color: "#38bdf8", weight: 5, dashArray: "1 12", lineCap: "round" }}
+                />
+
+                <Marker position={[ENTRANCE.lat, ENTRANCE.lng]} icon={createPin("pin-entrance", "GATE", ENTRANCE.name)} />
                 <Marker position={[slot.lat, slot.lng]} icon={createPin("pin-destination", slot.code, `Bay ${slot.code}`)} />
                 <FitBoth from={ENTRANCE} to={slotPos} />
-                <Routing from={ENTRANCE} to={slotPos} onResult={setRoute} />
               </MapContainer>
             </div>
 
-            {/* Spatial Metrics Row */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 18 }}>
-              <div className="card" style={{ padding: "16px 18px" }}>
-                <span className="kpi-label">Direct Euclidean Radius</span>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginTop: 4 }}>
-                  {fmtDistance(straight)}
-                </div>
-                <span className="muted" style={{ fontSize: 11 }}>Straight-line vector</span>
+            <div className="route-stats">
+              <div className="card">
+                <span className="kpi-label">Distance</span>
+                <strong style={{ color: "var(--ink)" }}>{fmtDistance(distance)}</strong>
+                <span className="muted">Straight line from the gate</span>
               </div>
-              <div className="card" style={{ padding: "16px 18px" }}>
-                <span className="kpi-label">Driving Lane Distance</span>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--brand)", marginTop: 4 }}>
-                  {route?.ok ? fmtDistance(route.distance) : route ? "Direct Waypoint" : "Calculating…"}
-                </div>
-                <span className="muted" style={{ fontSize: 11 }}>Campus lane network</span>
+              <div className="card">
+                <span className="kpi-label">On foot</span>
+                <strong style={{ color: "var(--brand)" }}>About {fmtDuration(distance / WALK_SPEED)}</strong>
+                <span className="muted">At a normal walking pace</span>
               </div>
-              <div className="card" style={{ padding: "16px 18px" }}>
-                <span className="kpi-label">Estimated Transit Time</span>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ok)", marginTop: 4 }}>
-                  {route?.ok ? fmtDuration(route.time) : route ? "< 1 min" : "Calculating…"}
-                </div>
-                <span className="muted" style={{ fontSize: 11 }}>At low-speed perimeter speed</span>
+              <div className="card">
+                <span className="kpi-label">Direction</span>
+                <strong style={{ color: "var(--ok)", textTransform: "capitalize" }}>{direction}</strong>
+                <span className="muted">From the gate</span>
               </div>
             </div>
-
-            {/* Turn-by-Turn Instruction Drawer */}
-            {route?.ok && route.instructions?.length > 0 && (
-              <div className="route-drawer">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 14 }}>Turn-by-Turn Maneuver Sequence</h3>
-                  <span className="badge badge-normal">{route.instructions.length} steps</span>
-                </div>
-                <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                  {route.instructions.map((step, idx) => (
-                    <div key={idx} className="instruction-item">
-                      <div style={{ color: "var(--brand)", marginTop: 2 }}>
-                        {step.type?.toLowerCase().includes("left") ? (
-                          <CornerUpLeft size={16} />
-                        ) : step.type?.toLowerCase().includes("right") ? (
-                          <CornerUpRight size={16} />
-                        ) : (
-                          <Compass size={16} />
-                        )}
-                      </div>
-                      <div style={{ flex: 1, fontSize: 13 }}>
-                        <div>{step.text}</div>
-                        {step.distance > 0 && (
-                          <span className="muted" style={{ fontSize: 11, fontFamily: "JetBrains Mono" }}>
-                            {fmtDistance(step.distance)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         ) : (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
             <MapPin size={40} className="muted" style={{ marginBottom: 12 }} />
-            <p className="muted">This bay has not been calibrated with GPS coordinates yet. Administrators can calibrate coordinates in Orbit Control.</p>
+            <p className="muted">This bay has no map location yet. An admin can add one in Admin.</p>
           </div>
         )}
       </div>

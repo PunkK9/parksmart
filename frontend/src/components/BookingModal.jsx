@@ -57,14 +57,14 @@ export default function BookingModal({ slot, defaultVehicle, onClose, onBooked }
           }}
         >
           <div>
-            <span className="kpi-label">Hourly Tariff</span>
+            <span className="kpi-label">Fee per hour</span>
             <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginTop: 2 }}>
               {fee ? `${money(fee.perHour)}` : "…"}<span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>/hr</span>
             </div>
           </div>
 
           <div>
-            <span className="kpi-label">Congestion Status</span>
+            <span className="kpi-label">How busy</span>
             <div style={{ marginTop: 2 }}>
               {fee ? (
                 <span className={`badge badge-${fee.level}`}>
@@ -80,7 +80,7 @@ export default function BookingModal({ slot, defaultVehicle, onClose, onBooked }
         {error && <div className="notice notice-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="vehicle">Vehicle Registration Number</label>
+          <label htmlFor="vehicle">Vehicle number</label>
           <input
             id="vehicle"
             value={vehicle}
@@ -93,11 +93,11 @@ export default function BookingModal({ slot, defaultVehicle, onClose, onBooked }
         </div>
 
         <button className="btn btn-primary btn-block" disabled={busy} style={{ height: 44 }}>
-          {busy ? <Loader2 size={18} className="spin" /> : "Authorize & Activate Pass"}
+          {busy ? <Loader2 size={18} className="spin" /> : "Book bay"}
         </button>
 
         <p className="muted" style={{ fontSize: 12, marginTop: 14, textAlign: "center" }}>
-          Tariff is computed upon boom gate exit scan based on elapsed time.
+          You pay only for the time you stay. The fee is worked out when you scan out at the gate.
         </p>
       </form>
     </div>

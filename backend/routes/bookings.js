@@ -16,6 +16,20 @@ const PLATE_RE = /^[A-Z0-9 -]{4,14}$/;
 const RESERVATION_HOLD_MINUTES = 15;
 const GATE_ROLES = ["admin", "staff"];
 
+// Transactions need a replica set or mongos (Atlas is always one). A plain local mongod
+// accepts startTransaction() and only fails on the first query, so ask the server up front.
+let txSupported = null;
+async function supportsTransactions() {
+  if (txSupported !== null) return txSupported;
+  try {
+    const info = await mongoose.connection.db.admin().command({ hello: 1 });
+    txSupported = Boolean(info.setName || info.msg === "isdbgrid");
+    return txSupported;
+  } catch {
+    return false; // don't cache a transient failure
+  }
+}
+
 /**
  * Sweep expired reservations that were booked but never checked in.
  * Releases slots automatically to prevent abandoned bays from remaining locked.
@@ -86,18 +100,11 @@ router.post("/", protect, wrap(async (req, res) => {
   }
 
   // 2. Multi-Document ACID Transaction with Atomic Fallback
-  let session = null;
-  let useTransaction = false;
-
-  try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    useTransaction = true;
-  } catch (sessErr) {
-    // If running on standalone MongoDB without replica set, fall back to atomic compensation
-    session = null;
-    useTransaction = false;
-  }
+  // Without a replica set, fall back to the atomic slot claim + unique partial index
+  // + slot release on failure below, which still prevents double booking.
+  const useTransaction = await supportsTransactions();
+  const session = useTransaction ? await mongoose.startSession() : null;
+  if (session) session.startTransaction();
 
   let slot = null;
   try {

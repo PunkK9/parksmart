@@ -963,6 +963,210 @@ label {
   background: #080c14;
 }
 
+/* Layer switch floating over the map needs a solid backing to stay readable on satellite imagery */
+.map-hud-top .segment-ctrl {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--shadow-spatial-dock);
+}
+
+/* One bubble per zone when the main map is zoomed out */
+.zone-bubble {
+  width: 110px;
+  height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(7, 10, 18, 0.88);
+  border: 2px solid #10b981;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.zone-bubble:hover {
+  transform: scale(1.06);
+}
+
+.zone-bubble b {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.zone-bubble span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6ee7b7;
+}
+
+.zone-bubble-full {
+  border-color: #ef4444;
+}
+
+.zone-bubble-full span {
+  color: #fca5a5;
+}
+
+/* Distance / time / direction cards under the directions map */
+.route-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.route-stats .card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+}
+
+.route-stats strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.route-stats .muted {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .route-stats {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* ---------- Phone layout: top bar logo, bottom tab bar, compact page header ---------- */
+.topbar-brand,
+.topbar-logout,
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    padding: 10px 16px;
+  }
+
+  .topbar-brand {
+    display: flex;
+    gap: 10px;
+  }
+
+  .topbar-brand .brand-mark {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+
+  .topbar-logout {
+    display: inline-grid;
+  }
+
+  .mobile-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1500;
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .mobile-nav a {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 2px;
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .mobile-nav a.active {
+    color: var(--brand);
+    background: var(--brand-soft);
+  }
+
+  /* Leave room so the tab bar never covers the end of the page */
+  main.content {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar .facility-indicator {
+    display: none;
+  }
+
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .page-head h1 {
+    font-size: 22px;
+  }
+
+  .page-head p {
+    font-size: 13px;
+  }
+
+  .page-head .segment-ctrl {
+    display: flex;
+  }
+
+  .page-head .segment-ctrl .segment-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .kpi {
+    padding: 14px;
+  }
+
+  .kpi-grid .kpi-icon {
+    display: none;
+  }
+
+  /* The attribution wraps to two lines on phones and would cover this label */
+  .map-status-pill {
+    display: none;
+  }
+
+  .spatial-map-wrap .map-hud-top {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
 /* Floating Glass Map HUD (Top & Bottom Controls) */
 .map-hud-top {
   position: absolute;

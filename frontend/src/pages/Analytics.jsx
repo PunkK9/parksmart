@@ -72,9 +72,9 @@ function Heatmap({ data }) {
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)", marginTop: 16 }}>
-        <span>Low Congestion</span>
+        <span>Quiet</span>
         <div style={{ width: 120, height: 6, borderRadius: 9999, background: "linear-gradient(90deg, rgba(59,130,246,0.15), rgba(59,130,246,1))" }} />
-        <span>Peak Congestion Surge</span>
+        <span>Busiest</span>
       </div>
     </div>
   );
@@ -155,8 +155,8 @@ export default function Analytics() {
     <>
       <div className="page-head">
         <div>
-          <h1>Spatial Operations & Telemetry</h1>
-          <p>Real-time campus occupancy telemetry, revenue attribution, and historical demand heatmaps.</p>
+          <h1>Analytics</h1>
+          <p>Bookings, revenue, and when people park.</p>
         </div>
       </div>
 
@@ -167,9 +167,9 @@ export default function Analytics() {
             <BarChart3 size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Total Volume</div>
+            <div className="kpi-label">Total bookings</div>
             <div className="kpi-val">{summary ? summary.total.toLocaleString("en-IN") : "…"}</div>
-            <div className="kpi-sub">Lifetime passes booked</div>
+            <div className="kpi-sub">All time</div>
           </div>
         </div>
 
@@ -178,11 +178,11 @@ export default function Analytics() {
             <CheckCircle size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Completed Sessions</div>
+            <div className="kpi-label">Completed</div>
             <div className="kpi-val" style={{ color: "var(--ok)" }}>
               {summary ? summary.completed.toLocaleString("en-IN") : "…"}
             </div>
-            <div className="kpi-sub">Verified gate exits</div>
+            <div className="kpi-sub">Checked out at the gate</div>
           </div>
         </div>
 
@@ -191,11 +191,11 @@ export default function Analytics() {
             <Activity size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Active Occupants</div>
+            <div className="kpi-label">Parked now</div>
             <div className="kpi-val" style={{ color: "var(--brand)" }}>
               {summary ? summary.active : "…"}
             </div>
-            <div className="kpi-sub">Vehicles parked now</div>
+            <div className="kpi-sub">Vehicles in a bay</div>
           </div>
         </div>
 
@@ -204,9 +204,9 @@ export default function Analytics() {
             <DollarSign size={20} />
           </div>
           <div className="kpi-body">
-            <div className="kpi-label">Billed Tariff</div>
+            <div className="kpi-label">Revenue</div>
             <div className="kpi-val">{summary ? money(summary.revenue) : "…"}</div>
-            <div className="kpi-sub">Dynamic tariff collection</div>
+            <div className="kpi-sub">Fees collected</div>
           </div>
         </div>
       </div>
@@ -215,7 +215,7 @@ export default function Analytics() {
       <div className="toolbar">
         <div className="toolbar-group">
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, marginRight: 4 }}>
-            <Filter size={15} /> Telemetry Scope:
+            <Filter size={15} /> Filter:
           </div>
           <input
             type="date"
@@ -232,15 +232,15 @@ export default function Analytics() {
             style={{ width: "auto" }}
           />
           <select value={filters.zone} onChange={setFilter("zone")} style={{ width: "auto" }}>
-            <option value="">All Zones</option>
+            <option value="">All zones</option>
             {zones.map((z) => (
               <option key={z} value={z}>Zone {z}</option>
             ))}
           </select>
           <select value={filters.vehicleType} onChange={setFilter("vehicleType")} style={{ width: "auto" }}>
-            <option value="">All Vehicle Types</option>
-            <option value="4-wheeler">4-Wheeler (Cars)</option>
-            <option value="2-wheeler">2-Wheeler (Bikes)</option>
+            <option value="">All vehicles</option>
+            <option value="4-wheeler">Cars</option>
+            <option value="2-wheeler">Bikes</option>
           </select>
         </div>
 
@@ -249,7 +249,7 @@ export default function Analytics() {
             className="btn btn-sm"
             onClick={() => setFilters({ from: "", to: "", zone: "", vehicleType: "" })}
           >
-            Reset Scope
+            Reset
           </button>
         )}
       </div>
@@ -260,10 +260,10 @@ export default function Analytics() {
         <div className="card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
-              <h3>Daily Revenue Trajectory</h3>
-              <p className="muted" style={{ fontSize: 12 }}>Cumulative tariff collection per operating day</p>
+              <h3>Revenue by day</h3>
+              <p className="muted" style={{ fontSize: 12 }}>Fees collected each day</p>
             </div>
-            <span className="badge badge-completed">Revenue Stream</span>
+            <span className="badge badge-completed">Revenue</span>
           </div>
           <div style={{ height: 260, width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -278,7 +278,7 @@ export default function Analytics() {
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted)" }} />
                 <YAxis tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 11, fill: "var(--muted)" }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="revenue" name="Daily Revenue" stroke="#3b82f6" fill="url(#revGrad)" strokeWidth={2.5} />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#3b82f6" fill="url(#revGrad)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -288,10 +288,10 @@ export default function Analytics() {
         <div className="card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
-              <h3>Zone Volume Distribution</h3>
-              <p className="muted" style={{ fontSize: 12 }}>Parking demand density across wings</p>
+              <h3>Bookings by zone</h3>
+              <p className="muted" style={{ fontSize: 12 }}>How many bookings each zone gets</p>
             </div>
-            <span className="badge badge-normal">Wing Density</span>
+            <span className="badge badge-normal">Zones</span>
           </div>
           <div style={{ height: 260, width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -310,9 +310,9 @@ export default function Analytics() {
       {/* 24x7 Occupancy Heatmap */}
       <div className="card" style={{ marginBottom: 28 }}>
         <div style={{ marginBottom: 16 }}>
-          <h3>24/7 Congestion Matrix</h3>
+          <h3>Busy hours by day</h3>
           <p className="muted" style={{ fontSize: 12 }}>
-            Hourly booking concentration telemetry mapped across days of the week (Sun–Sat) and 24 hours of the day
+            Bookings in each hour, for every day of the week
           </p>
         </div>
         <Heatmap data={heat} />
@@ -322,12 +322,12 @@ export default function Analytics() {
       <div className="card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
-            <h3>Smoothed Hourly Demand & Dynamic Surge Multiplier</h3>
+            <h3>Demand by hour</h3>
             <p className="muted" style={{ fontSize: 12 }}>
-              Circular moving average curve computing dynamic congestion tariffs in real-time
+              Bookings per hour with a 3-hour moving average, which sets the peak and quiet fees
             </p>
           </div>
-          <span className="badge badge-booked">Moving Avg Model</span>
+          <span className="badge badge-booked">3-hour average</span>
         </div>
         <div style={{ height: 240, width: "100%" }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -336,8 +336,8 @@ export default function Analytics() {
               <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "var(--muted)" }} />
               <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="bookings" name="Raw Hourly Volume" fill="var(--line-strong)" radius={[4, 4, 0, 0]} />
-              <Line type="monotone" dataKey="trend" name="Smoothed Traffic" stroke="#3b82f6" strokeWidth={3} dot={false} />
+              <Bar dataKey="bookings" name="Bookings" fill="var(--line-strong)" radius={[4, 4, 0, 0]} />
+              <Line type="monotone" dataKey="trend" name="3-hour average" stroke="#3b82f6" strokeWidth={3} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

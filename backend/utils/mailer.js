@@ -25,7 +25,7 @@ async function sendMail({ to, subject, html, text }) {
 }
 
 async function sendVerificationEmail({ to, name, link }) {
-  const text = `Hi ${name},\n\nWelcome to Orbit — Autonomous Spatial Parking. Verify your email to activate your account:\n${link}\n\nThis link expires in 24 hours. If you didn't sign up, please ignore this email.`;
+  const text = `Hi ${name},\n\nWelcome to Orbit Smart Parking. Verify your email to activate your account:\n${link}\n\nThis link expires in 24 hours. If you didn't sign up, please ignore this email.`;
   const html = `
   <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif;max-width:480px;margin:auto;padding:28px;background:#0b1120;color:#f8fafc;border:1px solid rgba(255,255,255,0.1);border-radius:16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
@@ -33,7 +33,7 @@ async function sendVerificationEmail({ to, name, link }) {
       <span style="font-size:18px;font-weight:bold;letter-spacing:-0.02em;">Orbit</span>
     </div>
     <h2 style="margin:0 0 10px;color:#f8fafc">Verify your Orbit account</h2>
-    <p style="color:#94a3b8;line-height:1.6">Hi ${name}, welcome to Orbit. Confirm your email address to activate your autonomous parking access pass.</p>
+    <p style="color:#94a3b8;line-height:1.6">Hi ${name}, welcome to Orbit. Confirm your email address to start booking parking.</p>
     <p style="margin:28px 0">
       <a href="${link}" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;box-shadow:0 4px 14px rgba(37,99,235,0.4)">Activate Account</a>
     </p>

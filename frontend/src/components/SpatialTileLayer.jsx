@@ -1,61 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TileLayer } from "react-leaflet";
 import { MAPBOX_TOKEN, TILE_PROVIDERS, hasMapboxToken } from "../config";
 import { useTheme } from "../ThemeContext.jsx";
 
-/**
- * Mapbox satellite or streets, with a CARTO streets fallback when the token
- * is missing or Mapbox tiles fail to load.
- */
+// Tile sources to try for each layer, best first. Mapbox is used only when a token is set.
+function providersFor(mode, isDark) {
+  const P = TILE_PROVIDERS;
+  const mapbox = hasMapboxToken() ? [mode === "satellite" ? P.mapboxSatellite : P.mapboxStreets] : [];
+  if (mode === "satellite") return [...mapbox, P.esriImagery];
+  return [...mapbox, isDark ? P.stadiaDark : P.stadiaLight, P.osm];
+}
+
+// A single failed tile can be a network blip; several mean the source is down or refusing us.
+const FAILS_BEFORE_SWITCH = 3;
+
 export default function SpatialTileLayer({ mode = "satellite", onStatus }) {
   const { isDark } = useTheme();
-  const [failed, setFailed] = useState(false);
-  const tokenOk = hasMapboxToken();
+  const providers = providersFor(mode, isDark);
+  const chainKey = `${mode}-${isDark}`;
+
+  // Which fallback we are on, remembered per layer so switching layers starts from the best source.
+  const [fallback, setFallback] = useState({ key: chainKey, index: 0 });
+  const index = fallback.key === chainKey ? fallback.index : 0;
+  const provider = providers[index];
+
+  const fails = useRef({ name: null, count: 0 });
 
   useEffect(() => {
-    setFailed(false);
-  }, [mode, tokenOk]);
+    onStatus?.(provider.name);
+  }, [provider.name, onStatus]);
 
-  useEffect(() => {
-    if (!onStatus) return;
-    if (mode === "satellite" && tokenOk && !failed) onStatus("Mapbox Satellite");
-    else if (mode === "streets" && tokenOk && !failed) onStatus("Mapbox Streets");
-    else onStatus(mode === "satellite" ? "Streets fallback" : "Streets");
-  }, [mode, tokenOk, failed, onStatus]);
+  const onTileError = () => {
+    if (fails.current.name !== provider.name) fails.current = { name: provider.name, count: 0 };
+    fails.current.count += 1;
+    if (fails.current.count >= FAILS_BEFORE_SWITCH && index < providers.length - 1) {
+      setFallback({ key: chainKey, index: index + 1 });
+    }
+  };
 
-  const onTileError = () => setFailed(true);
+  const url = typeof provider.url === "function" ? provider.url(MAPBOX_TOKEN) : provider.url;
 
-  if (mode === "satellite" && tokenOk && !failed) {
-    return (
-      <TileLayer
-        key="mapbox-satellite"
-        attribution={TILE_PROVIDERS.mapboxSatellite.attribution}
-        url={TILE_PROVIDERS.mapboxSatellite.url(MAPBOX_TOKEN)}
-        maxZoom={TILE_PROVIDERS.mapboxSatellite.maxZoom}
-        eventHandlers={{ tileerror: onTileError }}
-      />
-    );
-  }
-
-  if (mode === "streets" && tokenOk && !failed) {
-    return (
-      <TileLayer
-        key="mapbox-streets"
-        attribution={TILE_PROVIDERS.mapboxStreets.attribution}
-        url={TILE_PROVIDERS.mapboxStreets.url(MAPBOX_TOKEN)}
-        maxZoom={TILE_PROVIDERS.mapboxStreets.maxZoom}
-        eventHandlers={{ tileerror: onTileError }}
-      />
-    );
-  }
-
-  const streets = isDark ? TILE_PROVIDERS.darkVector : TILE_PROVIDERS.streets;
   return (
     <TileLayer
-      key={isDark ? "carto-dark" : "carto-streets"}
-      attribution={streets.attribution}
-      url={streets.url}
-      maxZoom={streets.maxZoom}
+      key={url}
+      url={url}
+      attribution={provider.attribution}
+      maxNativeZoom={provider.maxNativeZoom}
+      maxZoom={21}
+      eventHandlers={{ tileerror: onTileError }}
     />
   );
 }

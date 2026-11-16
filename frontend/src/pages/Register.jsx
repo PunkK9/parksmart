@@ -83,7 +83,7 @@ export default function Register() {
                 <div className="brand-mark">O</div>
                 <div className="brand-text">
                   <span className="brand-title">Orbit</span>
-                  <span className="brand-tag">Autonomous Hub Registration</span>
+                  <span className="brand-tag">Smart Parking</span>
                 </div>
               </div>
               <h2>Create your account</h2>
